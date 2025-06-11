@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video a Schermo Intero con Avvisi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- Reset di base e stili globali --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden; /* Nasconde lo scroll */
+            font-family: 'Inter', sans-serif;
+            background-color: #000; /* Colore di fallback che crea le barre nere */
+        }
+
+        /* --- Contenitore per il video e gli overlay --- */
+        #video-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #background-video {
+            width: 100%;
+            height: 100%;
+            z-index: 1; 
+            object-fit: contain; /* Assicura che l'intero video sia visibile */
+        }
+        
+        /* --- Stili per il popup di notifica --- */
+        #notification-popup {
+            position: absolute; 
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ef4444;
+            color: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            border: 2px solid #fca5a5;
+            box-shadow: 0 6px 25px rgba(239, 68, 68, 0.5);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            transition: opacity 0.5s, transform 0.5s;
+            opacity: 0;
+            pointer-events: none;
+            width: 80%;
+            max-width: 500px;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        
+        #notification-popup.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+
+        #notification-message {
+            margin: 0;
+            padding-right: 20px;
+            flex-grow: 1;
+        }
+
+        #close-notification {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.8;
+            padding: 5px;
+        }
+        #close-notification:hover {
+            opacity: 1;
+        }
+
+        /* --- Pulsante personalizzato per schermo intero --- */
+        #custom-fullscreen-btn {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            background: rgba(40, 40, 40, 0.7);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 10px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #custom-fullscreen-btn:hover {
+            background: rgba(60, 60, 60, 0.9);
+        }
+        
+        /* --- Schermata di errore 401 --- */
+        #error-401-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #111827;
+            color: #F9FAFB;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            text-align: center;
+        }
+        #error-401-screen h2 {
+            font-size: 6rem;
+            margin: 0;
+            color: #E5E7EB;
+        }
+        #error-401-screen p {
+            font-size: 1.5rem;
+            color: #9CA3AF;
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 768px) {
+            #notification-popup { width: 90%; }
+            #error-401-screen h2 { font-size: 4rem; }
+            #error-401-screen p { font-size: 1.1rem; }
+            #custom-fullscreen-btn { bottom: 50px; } /* Alza il pulsante su mobile dove i controlli sono più alti */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="video-wrapper">
+        <video loop playsinline id="background-video" controls controlsList="nofullscreen">
+            <source src="video_principale.mp4" type="video/mp4">
+            Il tuo browser non supporta il tag video.
+        </video>
+
+        <div id="notification-popup">
+            <p id="notification-message">...</p>
+            <button id="close-notification" title="Chiudi">&times;</button>
+        </div>
+
+        <button id="custom-fullscreen-btn" title="Schermo intero">
+            <svg id="fullscreen-enter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="24px" height="24px"><path d="M0 0h24v24H0z" fill="none"/><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+            <svg id="fullscreen-exit-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="24px" height="24px" style="display: none;"><path d="M0 0h24v24H0z" fill="none"/><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+        </button>
+    </div>
+
+    <div id="error-401-screen">
+        <h2>401</h2>
+        <p>Accesso Negato / Unauthorized</p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const videoWrapper = document.getElementById('video-wrapper');
+            const video = document.getElementById('background-video');
+            const notificationPopup = document.getElementById('notification-popup');
+            const notificationMessage = document.getElementById('notification-message');
+            const closeButton = document.getElementById('close-notification');
+            const errorScreen = document.getElementById('error-401-screen');
+            const customFullscreenBtn = document.getElementById('custom-fullscreen-btn');
+            const enterIcon = document.getElementById('fullscreen-enter-icon');
+            const exitIcon = document.getElementById('fullscreen-exit-icon');
+            
+            video.addEventListener('play', initializeAppLogic, { once: true });
+            
+            customFullscreenBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    videoWrapper.requestFullscreen().catch(err => {
+                        alert(`Errore nell'attivare la modalità schermo intero: ${err.message}`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            document.addEventListener('fullscreenchange', () => {
+                if (document.fullscreenElement) {
+                    enterIcon.style.display = 'none';
+                    exitIcon.style.display = 'block';
+                } else {
+                    enterIcon.style.display = 'block';
+                    exitIcon.style.display = 'none';
+                }
+            });
+
+            function initializeAppLogic() {
+                let lastShownNotificationIndex = -1;
+                let popupsOpened = false;
+                let popupWindows = [];
+                let popupCheckInterval = null;
+                let generatedMessages = [];
+                let messagesReady = false;
+
+                const notifications = [
+                    { time: 30, shown: false },
+                    { time: 120, shown: false }
+                ];
+
+                async function generateMysteriousMessages() {
+                    const prompt = "Generate exactly 3 short, urgent, one-sentence messages that you would find on an illegal streaming site. The tone should be like a fake ad or a security warning. For example: 'Your PC is at risk!', 'Download now to continue watching!', 'You have (1) new message from Administrator.'";
+                    const fallbackMessages = ["ATTENZIONE: Il tuo PC è a rischio!", "DOWNLOAD OBBLIGATORIO PER CONTINUARE!", "Hai (1) nuovo messaggio non letto."];
+                    try {
+                        const apiKey = ""; // Lasciare vuoto
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                        const payload = {
+                            contents: [{ role: "user", parts: [{ text: prompt }] }],
+                            generationConfig: {
+                                responseMimeType: "application/json",
+                                responseSchema: { type: "OBJECT", properties: { messages: { type: "ARRAY", items: { type: "STRING" } } } }
+                            }
+                        };
+                        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                        const result = await response.json();
+                        const text = result.candidates[0].content.parts[0].text;
+                        const parsedJson = JSON.parse(text);
+                        if (parsedJson.messages && parsedJson.messages.length >= 3) {
+                            generatedMessages = parsedJson.messages;
+                        } else {
+                            throw new Error("Invalid response format from API.");
+                        }
+                    } catch (error) {
+                        console.error("Errore nel chiamare l'API di Gemini, uso messaggi di fallback.", error);
+                        generatedMessages = fallbackMessages;
+                    } finally {
+                        messagesReady = true;
+                    }
+                }
+
+                function showNotification(message, index) {
+                    video.pause();
+                    lastShownNotificationIndex = index;
+                    notificationMessage.innerHTML = `⚠️ ${message}`;
+                    notificationPopup.classList.add('show');
+                }
+
+                function hideNotification() {
+                    notificationPopup.classList.remove('show');
+                    const isLastNotification = lastShownNotificationIndex === (notifications.length - 1);
+                    
+                    if (isLastNotification && !popupsOpened) {
+                        openPopups();
+                        popupsOpened = true;
+                    }
+                    
+                    // MODIFICA: Il video riprende sempre dopo aver chiuso un avviso
+                    video.play(); 
+                }
+                
+                function openPopups() {
+                    let popupsBlocked = false;
+                    for (let i = 0; i < 20; i++) {
+                        const newWindow = window.open('popup.html', '_blank', 'width=400,height=300');
+                        if (newWindow) {
+                            popupWindows.push(newWindow);
+                        } else {
+                            popupsBlocked = true;
+                            break;
+                        }
+                    }
+                    if (popupsBlocked) {
+                        alert("Il tuo browser ha bloccato i pop-up. Abilitali per questo sito.");
+                    } else if (popupWindows.length > 0) {
+                        popupCheckInterval = setInterval(checkForClosedPopups, 1000);
+                    }
+                }
+
+                function checkForClosedPopups() {
+                    const allClosed = popupWindows.every(win => win.closed);
+                    if (allClosed) {
+                        clearInterval(popupCheckInterval);
+                        show401ErrorScreen();
+                    }
+                }
+
+                function show401ErrorScreen() {
+                    video.pause();
+                    videoWrapper.style.display = 'none';
+                    errorScreen.style.display = 'flex';
+                }
+
+                closeButton.addEventListener('click', hideNotification);
+
+                video.addEventListener('timeupdate', function() {
+                    if (!messagesReady) return;
+                    const currentTime = Math.floor(this.currentTime);
+                    notifications.forEach((notification, index) => {
+                        if (currentTime === notification.time && !notification.shown) {
+                            showNotification(generatedMessages[index], index);
+                            notification.shown = true;
+                        }
+                    });
+                });
+
+                video.addEventListener('seeking', function() {
+                     if (this.currentTime < 1) {
+                        notifications.forEach(n => n.shown = false);
+                        popupsOpened = false;
+                        lastShownNotificationIndex = -1;
+                        popupWindows = [];
+                        if (popupCheckInterval) clearInterval(popupCheckInterval);
+                        notificationPopup.classList.remove('show');
+                     }
+                });
+
+                generateMysteriousMessages();
+            }
+        });
+    </script>
+
+</body>
+</html>

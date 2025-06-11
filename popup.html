@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Pop-up</title>
+    <style>
+        /* Stili per far sì che il video riempia la finestra */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <!-- 
+      MODIFICA: Aggiunto l'attributo 'muted'. 
+      Questo è necessario perché i browser bloccano l'autoplay dei video con audio.
+      L'utente potrà comunque attivare l'audio dai controlli.
+    -->
+    <video src="video_popup.mp4" autoplay controls loop muted></video>
+</body>
+</html>
